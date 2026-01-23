@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Storyweave - 故事讲述</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-root">
+      <header class="app-header">
+        <div class="brand">
+          <span class="brand-logo">S</span>
+          <span class="brand-title">Storyweave</span>
+        </div>
+        <div class="header-controls">
+          <div class="ratio-toggle" title="切换画布比例">
+            <button data-ratio="pc" class="ratio-btn active">PC 比例</button>
+            <button data-ratio="mobile" class="ratio-btn">手机比例</button>
+          </div>
+          <div class="text-size-control" title="调节文字页字体大小">
+            <span>文字大小</span>
+            <input
+              type="range"
+              id="textSizeControl"
+              min="14"
+              max="30"
+              value="18"
+            />
+          </div>
+          <div class="auto-play">
+            <label>
+              <input type="checkbox" id="autoPlayToggle" />
+              自动播放
+            </label>
+            <label class="interval-label">
+              每
+              <input
+                type="number"
+                id="autoPlayInterval"
+                min="1"
+                value="5"
+              />
+              秒翻页
+            </label>
+          </div>
+        </div>
+      </header>
+
+      <main class="app-main">
+        <section class="player-section">
+          <div class="story-frame-wrapper">
+            <div class="story-frame pc" id="storyFrame">
+              <div class="story-slide" id="storySlide">
+                <!-- 内容由 JS 渲染 -->
+              </div>
+              <button class="nav-btn prev" id="prevBtn" aria-label="上一页">
+                ‹
+              </button>
+              <button class="nav-btn next" id="nextBtn" aria-label="下一页">
+                ›
+              </button>
+              <div class="page-indicator" id="pageIndicator"></div>
+            </div>
+          </div>
+          <div class="hint">
+            左右滑动或点击箭头翻页 · 支持键盘方向键
+          </div>
+        </section>
+
+        <aside class="editor-section">
+          <h2>故事编辑器</h2>
+          <div class="editor-form">
+            <label>
+              页面类型
+              <select id="pageType">
+                <option value="text">文字</option>
+                <option value="image">图片</option>
+                <option value="video">视频</option>
+              </select>
+            </label>
+
+            <label id="textContentLabel">
+              文字内容
+              <textarea
+                id="textContent"
+                rows="4"
+                placeholder="输入故事文字内容..."
+              ></textarea>
+            </label>
+
+            <label id="mediaUrlLabel" class="hidden">
+              图片 / 视频
+              <input
+                type="text"
+                id="mediaUrl"
+                placeholder="输入图片或视频的网络地址（URL）"
+              />
+              <span class="field-hint">或选择本地文件：</span>
+              <input
+                type="file"
+                id="mediaFile"
+                accept="image/*,video/*"
+              />
+            </label>
+
+            <label>
+              本页停留时间（秒，可选）
+              <input
+                type="number"
+                id="pageDuration"
+                min="1"
+                placeholder="留空则使用全局设置"
+              />
+            </label>
+
+            <div class="editor-actions">
+              <button id="addPageBtn" class="primary">添加页面</button>
+              <button id="replaceCurrentBtn" class="secondary">
+                替换当前页
+              </button>
+              <button id="deleteCurrentBtn" class="danger">
+                删除当前页
+              </button>
+            </div>
+          </div>
+
+          <div class="story-structure">
+            <h3>页面列表</h3>
+            <ul id="pageList" class="page-list"></ul>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script src="./main.js"></script>
+  </body>
+  </html>
+

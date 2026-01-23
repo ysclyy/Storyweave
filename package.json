@@ -1,0 +1,11 @@
+{
+  "name": "storyweave-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "即开即用的故事讲述网页 APP，支持文字/图片/视频页面、自动播放、PC/手机比例切换和懒加载。",
+  "scripts": {
+    "start": "npx serve .",
+    "preview": "npx serve ."
+  }
+}
+
