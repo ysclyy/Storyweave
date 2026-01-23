@@ -1,0 +1,16 @@
+# 素材文件夹
+materials/
+
+# 导出的故事文件
+story.json
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

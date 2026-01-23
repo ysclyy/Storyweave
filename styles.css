@@ -207,13 +207,17 @@ body {
   background: #020617;
   border: 1px solid rgba(148, 163, 184, 0.6);
   box-shadow: 0 22px 55px rgba(15, 23, 42, 0.95);
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   align-items: stretch;
   justify-content: center;
   touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
+}
+
+.story-slide {
+  overflow: hidden;
 }
 
 .story-frame.pc {
@@ -289,34 +293,41 @@ body {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: 36px;
-  height: 72px;
+  width: 28px;
+  height: 56px;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.75);
-  background: radial-gradient(circle at top, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.9));
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
   color: var(--text-main);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.9);
-  opacity: 0.8;
+  font-size: 18px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.6);
+  opacity: 0.4;
+  z-index: 10;
   transition: opacity var(--transition-fast), transform 0.12s ease-out,
     background var(--transition-fast);
 }
 
+.story-frame:hover .nav-btn {
+  opacity: 0.7;
+}
+
 .nav-btn:hover {
   opacity: 1;
+  background: rgba(15, 23, 42, 0.95);
   transform: translateY(-50%) translateX(1px);
 }
 
 .nav-btn.prev {
-  left: 10px;
+  left: -14px;
 }
 
 .nav-btn.next {
-  right: 10px;
+  right: -14px;
 }
 
 .page-indicator {
@@ -563,6 +574,29 @@ button.danger:hover {
 
 .page-meta {
   color: rgba(209, 213, 219, 0.9);
+}
+
+.import-export-section {
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px dashed rgba(148, 163, 184, 0.7);
+}
+
+.import-export-section h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.import-export-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.import-export-actions button {
+  flex: 1;
 }
 
 .hidden {

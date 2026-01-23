@@ -38,6 +38,10 @@ const pageList = document.getElementById('pageList');
 
 const mediaFileInput = document.getElementById('mediaFile');
 
+const exportBtn = document.getElementById('exportBtn');
+const importBtn = document.getElementById('importBtn');
+const importFileInput = document.getElementById('importFileInput');
+
 let pendingLocalMedia = null; // { id, type, fileName }
 
 function openMediaDb() {
@@ -94,6 +98,42 @@ async function getMediaBlob(mediaId) {
     };
     req.onerror = () => reject(req.error || new Error('读取媒体失败'));
   });
+}
+
+async function getMediaInfo(mediaId) {
+  if (!mediaId) return null;
+  const db = await openMediaDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(MEDIA_STORE, 'readonly');
+    const store = tx.objectStore(MEDIA_STORE);
+    const req = store.get(mediaId);
+    req.onsuccess = () => {
+      if (!req.result) {
+        resolve(null);
+      } else {
+        resolve({
+          blob: req.result.blob,
+          fileName: req.result.fileName,
+          mime: req.result.mime,
+        });
+      }
+    };
+    req.onerror = () => reject(req.error || new Error('读取媒体信息失败'));
+  });
+}
+
+function getFileExtensionFromMime(mime, defaultExt) {
+  const mimeMap = {
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/png': 'png',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'video/mp4': 'mp4',
+    'video/webm': 'webm',
+    'video/ogg': 'ogv',
+  };
+  return mimeMap[mime] || defaultExt;
 }
 
 function saveStoryToStorage() {
@@ -711,6 +751,333 @@ function restartAutoPlayTimer() {
   storyState.timerId = window.setTimeout(() => {
     goToNext();
   }, durationSec * 1000);
+}
+
+async function exportStory() {
+  if (!storyState.pages.length) {
+    alert('当前没有故事内容可导出');
+    return;
+  }
+
+  try {
+    const exportData = {
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      pages: [],
+    };
+
+    const mediaFiles = [];
+
+    for (let i = 0; i < storyState.pages.length; i += 1) {
+      const page = storyState.pages[i];
+      const pageData = {
+        id: page.id,
+        type: page.type,
+        durationSec: page.durationSec || undefined,
+      };
+
+      if (page.type === 'text') {
+        pageData.text = page.text;
+      } else if (page.type === 'image' || page.type === 'video') {
+        if (page.mediaId) {
+          try {
+            const mediaInfo = await getMediaInfo(page.mediaId);
+            if (mediaInfo && mediaInfo.blob) {
+              const ext = getFileExtensionFromMime(
+                mediaInfo.mime,
+                page.type === 'image' ? 'jpg' : 'mp4'
+              );
+              const fileName = `media_${page.id}.${ext}`;
+              pageData.fileName = fileName;
+              mediaFiles.push({
+                fileName,
+                blob: mediaInfo.blob,
+                type: page.type,
+              });
+            } else {
+              console.warn(`页面 ${page.id} 的媒体文件不存在`);
+              if (page.url) {
+                pageData.url = page.url;
+              }
+            }
+          } catch (e) {
+            console.error(`导出页面 ${page.id} 的媒体文件失败：`, e);
+            if (page.url) {
+              pageData.url = page.url;
+            }
+          }
+        } else if (page.url) {
+          pageData.url = page.url;
+        }
+      }
+
+      exportData.pages.push(pageData);
+    }
+
+    const jsonStr = JSON.stringify(exportData, null, 2);
+    const jsonBlob = new Blob([jsonStr], { type: 'application/json' });
+
+    if (window.showDirectoryPicker) {
+      try {
+        console.log('开始导出，选择文件夹...');
+        const dirHandle = await window.showDirectoryPicker();
+        console.log('已选择文件夹：', dirHandle.name);
+
+        console.log('写入 story.json...');
+        const storyFileHandle = await dirHandle.getFileHandle('story.json', {
+          create: true,
+        });
+        const writable = await storyFileHandle.createWritable();
+        await writable.write(jsonBlob);
+        await writable.close();
+        console.log('story.json 写入完成');
+
+        if (mediaFiles.length > 0) {
+          console.log(`准备导出 ${mediaFiles.length} 个媒体文件...`);
+          const materialsDirHandle = await dirHandle.getDirectoryHandle(
+            'materials',
+            { create: true }
+          );
+
+          for (let i = 0; i < mediaFiles.length; i += 1) {
+            const media = mediaFiles[i];
+            console.log(`导出媒体文件 ${i + 1}/${mediaFiles.length}: ${media.fileName}`);
+            const fileHandle = await materialsDirHandle.getFileHandle(
+              media.fileName,
+              { create: true }
+            );
+            const writable = await fileHandle.createWritable();
+            await writable.write(media.blob);
+            await writable.close();
+          }
+          console.log('所有媒体文件导出完成');
+        }
+
+        alert(
+          `导出成功！\n已保存到：${dirHandle.name}/story.json\n${
+            mediaFiles.length > 0
+              ? `媒体文件已保存到：${dirHandle.name}/materials/（共 ${mediaFiles.length} 个文件）`
+              : '（无媒体文件）'
+          }`
+        );
+      } catch (e) {
+        if (e.name === 'AbortError') {
+          console.log('用户取消了导出');
+          return;
+        }
+        console.error('导出过程中出错：', e);
+        throw e;
+      }
+    } else {
+      const jsonUrl = URL.createObjectURL(jsonBlob);
+      const a = document.createElement('a');
+      a.href = jsonUrl;
+      a.download = 'story.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(jsonUrl);
+
+      alert(
+        `JSON 文件已下载。\n由于浏览器限制，媒体文件需要手动从 IndexedDB 导出。\n建议使用支持 File System Access API 的浏览器（如 Chrome 88+）以获得完整导出功能。`
+      );
+    }
+  } catch (e) {
+    console.error('导出失败：', e);
+    alert(`导出失败：${e.message}`);
+  }
+}
+
+async function importStory() {
+  // 优先使用目录选择器，将 story.json 和 materials 当作一个整体导入
+  if (window.showDirectoryPicker) {
+    try {
+      console.log('开始导入，选择文件夹...');
+      const dirHandle = await window.showDirectoryPicker();
+      console.log('已选择文件夹：', dirHandle.name);
+
+      console.log('读取 story.json...');
+      const storyFileHandle = await dirHandle.getFileHandle('story.json');
+      const storyFile = await storyFileHandle.getFile();
+      const text = await storyFile.text();
+      const data = JSON.parse(text);
+      console.log('story.json 解析完成，共', data.pages?.length || 0, '页');
+
+      if (!Array.isArray(data.pages)) {
+        throw new Error('无效的 story.json 文件格式');
+      }
+
+      if (
+        !confirm(
+          `确定要从该目录导入故事吗？\n这将替换当前的所有页面（共 ${data.pages.length} 页）。`
+        )
+      ) {
+        return;
+      }
+
+      let materialsDirHandle = null;
+      const hasFilePages = data.pages.some((p) => p.fileName);
+      if (hasFilePages) {
+        try {
+          console.log('查找 materials 文件夹...');
+          materialsDirHandle = await dirHandle.getDirectoryHandle('materials');
+          console.log('找到 materials 文件夹');
+        } catch (e) {
+          console.warn('未找到 materials 文件夹，仅导入文字和 URL 页面。', e);
+        }
+      }
+
+      const importedPages = [];
+      let mediaLoadedCount = 0;
+      let mediaFailedCount = 0;
+
+      for (let i = 0; i < data.pages.length; i += 1) {
+        const pageData = data.pages[i];
+        console.log(`处理页面 ${i + 1}/${data.pages.length}: ${pageData.type}`);
+        const page = {
+          id: pageData.id || crypto.randomUUID(),
+          type: pageData.type,
+          durationSec: pageData.durationSec,
+        };
+
+        if (pageData.type === 'text') {
+          page.text = pageData.text;
+        } else if (pageData.type === 'image' || pageData.type === 'video') {
+          if (pageData.fileName && materialsDirHandle) {
+            try {
+              console.log(`  加载媒体文件: ${pageData.fileName}`);
+              const fileHandle = await materialsDirHandle.getFileHandle(
+                pageData.fileName
+              );
+              const file = await fileHandle.getFile();
+              const mediaId = await saveMediaFile(file, pageData.type);
+              page.mediaId = mediaId;
+              mediaLoadedCount += 1;
+              console.log(`  ✓ 媒体文件加载成功`);
+            } catch (err) {
+              console.warn(
+                `  ✗ 无法加载媒体文件 ${pageData.fileName}：`,
+                err
+              );
+              mediaFailedCount += 1;
+              if (pageData.url) {
+                page.url = pageData.url;
+                console.log(`  使用备用 URL`);
+              }
+            }
+          } else if (pageData.url) {
+            // 没有 materials 或找不到文件时，退回使用远程 URL
+            page.url = pageData.url;
+            console.log(`  使用 URL: ${pageData.url}`);
+          } else if (pageData.fileName && !materialsDirHandle) {
+            console.warn(`  页面需要媒体文件 ${pageData.fileName}，但未找到 materials 文件夹`);
+          }
+        }
+
+        importedPages.push(page);
+      }
+
+      storyState.pages = importedPages;
+      storyState.currentIndex = 0;
+      saveStoryToStorage();
+      syncFormWithCurrentPage();
+      renderPage();
+
+      console.log('导入完成');
+      const mediaSummary =
+        mediaLoadedCount > 0 || mediaFailedCount > 0
+          ? `\n媒体文件：成功 ${mediaLoadedCount} 个${
+              mediaFailedCount > 0 ? `，失败 ${mediaFailedCount} 个` : ''
+            }`
+          : '';
+      alert(
+        `导入成功！\n共导入 ${importedPages.length} 个页面。${mediaSummary}\n来源目录：${dirHandle.name}`
+      );
+    } catch (e) {
+      if (e.name === 'AbortError') {
+        console.log('用户取消了导入');
+        return;
+      }
+      console.error('导入失败：', e);
+      alert(`导入失败：${e.message}\n\n请检查：\n1. 是否选择了包含 story.json 的文件夹\n2. story.json 格式是否正确\n3. 浏览器控制台查看详细错误信息`);
+    }
+  } else {
+    // 旧浏览器降级为仅通过 JSON 文件导入（无法自动导入本地媒体文件）
+    importFileInput.click();
+  }
+}
+
+importFileInput.addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+
+    if (!Array.isArray(data.pages)) {
+      throw new Error('无效的故事文件格式');
+    }
+
+    if (
+      !confirm(
+        `确定要导入这个故事吗？\n这将替换当前的所有页面（共 ${data.pages.length} 页）。`
+      )
+    ) {
+      importFileInput.value = '';
+      return;
+    }
+
+    const importedPages = [];
+
+    for (const pageData of data.pages) {
+      const page = {
+        id: pageData.id || crypto.randomUUID(),
+        type: pageData.type,
+        durationSec: pageData.durationSec,
+      };
+
+      if (pageData.type === 'text') {
+        page.text = pageData.text;
+      } else if (pageData.type === 'image' || pageData.type === 'video') {
+        if (pageData.fileName) {
+          // 通过单独 JSON 导入时，无法自动从本地文件夹读取媒体文件，
+          // 这里只能提示用户稍后在编辑器中手动重新上传对应媒体。
+          alert(
+            `页面 "${pageData.fileName}" 关联了本地媒体文件。\n通过单独 JSON 导入时无法自动恢复本地媒体，请稍后在编辑器中手动重新上传。`
+          );
+          if (pageData.url) {
+            page.url = pageData.url;
+          }
+        } else if (pageData.url) {
+          page.url = pageData.url;
+        }
+      }
+
+      importedPages.push(page);
+    }
+
+    storyState.pages = importedPages;
+    storyState.currentIndex = 0;
+    saveStoryToStorage();
+    syncFormWithCurrentPage();
+    renderPage();
+
+    alert(`导入成功！共导入 ${importedPages.length} 个页面。`);
+  } catch (e) {
+    console.error('导入失败：', e);
+    alert(`导入失败：${e.message}`);
+  } finally {
+    importFileInput.value = '';
+  }
+});
+
+if (exportBtn) {
+  exportBtn.addEventListener('click', exportStory);
+}
+
+if (importBtn) {
+  importBtn.addEventListener('click', importStory);
 }
 
 function init() {
