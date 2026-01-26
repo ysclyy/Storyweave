@@ -1,5 +1,6 @@
 # 素材文件夹
 materials/
+node_modules/
 
 # 导出的故事文件
 story.json
